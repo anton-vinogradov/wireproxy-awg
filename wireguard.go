@@ -59,25 +59,25 @@ func CreateIPCRequest(conf *DeviceConfig) (*DeviceSetting, error) {
 			fmt.Fprintf(&aSecBuilder, "s4=%d\n", aSecConfig.transportPacketJunkSize)
 		}
 		if aSecConfig.hasInitPacketMagicHeader {
-			fmt.Fprintf(&aSecBuilder, 
+			fmt.Fprintf(&aSecBuilder,
 				"h1=%s\n",
 				formatMagicHeaderInterval(aSecConfig.initPacketMagicHeader, aSecConfig.initPacketMagicHeaderMax),
 			)
 		}
 		if aSecConfig.hasResponsePacketMagicHeader {
-			fmt.Fprintf(&aSecBuilder, 
+			fmt.Fprintf(&aSecBuilder,
 				"h2=%s\n",
 				formatMagicHeaderInterval(aSecConfig.responsePacketMagicHeader, aSecConfig.responsePacketMagicHeaderMax),
 			)
 		}
 		if aSecConfig.hasUnderloadPacketMagicHeader {
-			fmt.Fprintf(&aSecBuilder, 
+			fmt.Fprintf(&aSecBuilder,
 				"h3=%s\n",
 				formatMagicHeaderInterval(aSecConfig.underloadPacketMagicHeader, aSecConfig.underloadPacketMagicHeaderMax),
 			)
 		}
 		if aSecConfig.hasTransportPacketMagicHeader {
-			fmt.Fprintf(&aSecBuilder, 
+			fmt.Fprintf(&aSecBuilder,
 				"h4=%s\n",
 				formatMagicHeaderInterval(aSecConfig.transportPacketMagicHeader, aSecConfig.transportPacketMagicHeaderMax),
 			)
@@ -171,11 +171,13 @@ func StartWireguard(conf *DeviceConfig, logLevel int) (*VirtualTun, error) {
 	dev := device.NewDevice(tun, conn.NewDefaultBind(), device.NewLogger(logLevel, ""))
 	err = dev.IpcSet(setting.IpcRequest)
 	if err != nil {
+		dev.Close()
 		return nil, err
 	}
 
 	err = dev.Up()
 	if err != nil {
+		dev.Close()
 		return nil, err
 	}
 
