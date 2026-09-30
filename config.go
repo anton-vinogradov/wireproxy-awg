@@ -17,12 +17,13 @@ import (
 )
 
 type PeerConfig struct {
-	PublicKey    string
-	PreSharedKey string
-	Endpoint     *string
-	KeepAlive    int // PersistentKeepalive in seconds; lower bound when a range is configured
-	KeepAliveMax int // upper bound of the PersistentKeepalive range, ignored when below KeepAlive
-	AllowedIPs   []netip.Prefix
+	PublicKey      string
+	PreSharedKey   string
+	Endpoint       *string
+	KeepAlive      int // PersistentKeepalive in seconds; lower bound when a range is configured
+	KeepAliveMax   int // upper bound of the PersistentKeepalive range, ignored when below KeepAlive
+	AllowedIPs     []netip.Prefix
+	keepAliveRange *uintRange // exact parsed range preserves uint32 on 32-bit systems
 }
 
 // DeviceConfig contains the information to initiate a wireguard connection
@@ -386,6 +387,7 @@ func ParsePeers(cfg *ini.File, peers *[]PeerConfig) error {
 			}
 			peer.KeepAlive = int(value.min)
 			peer.KeepAliveMax = int(value.max)
+			peer.keepAliveRange = &value
 		}
 
 		peer.AllowedIPs, err = parseAllowedIPs(section)

@@ -76,7 +76,7 @@ make
 # Install
 
 ```bash
-go install github.com/anton-vinogradov/wireproxy-awg/v3/cmd/wireproxy@v3.0.0 # or @latest
+go install github.com/anton-vinogradov/wireproxy-awg/v3/cmd/wireproxy@v3.1.0 # or @latest
 ```
 
 # Use with VPN
@@ -85,9 +85,9 @@ Instructions for using wireproxy with Firefox container tabs and auto-start on M
 
 # AmneziaWG parameters
 
-This fork uses amneziawg-go 3.1.20260828 and supports the AmneziaWG 1.0–3.0
+This fork uses amneziawg-go 3.1.20260828 and supports the AmneziaWG 1.0–3.1
 configuration parameters below. Existing configurations keep their wire format;
-3.1-only options such as RandomTrailers and DisableCookies are not enabled.
+3.1-only options `RandomTrailers` and `DisableCookies` remain disabled unless explicitly enabled.
 The obfuscation parameters go into the
 `[Interface]` section, next to the usual wireguard ones, and use the same names
 as an `awg-quick` configuration, so a config exported from the Amnezia client
@@ -123,7 +123,7 @@ packet.
 | `I1` - `I5` | tag sequence | custom packets sent before every handshake, in order |
 
 > [!NOTE]
-> With `S4` set, amneziawg-go 3.0.3 loses the first data packet of the tunnel:
+> With `S4` set, amneziawg-go 3.0.3 and 3.1.20260828 can lose the first data packet of the tunnel:
 > its TUN reader reads the transport padding once, before the device is
 > configured, so that one packet goes out without the padding and the peer drops
 > it. Everything after it is fine. In practice this costs one TCP retransmit on
@@ -156,6 +156,15 @@ both sides. It uses the `S1`-`S4` padding as its nonce, so all four of them have
 to be set to at least 12 when it is in use.
 
 In the `[Peer]` section `PersistentKeepalive` also accepts a range.
+
+### AmneziaWG 3.1 options
+
+`RandomTrailers` and `DisableCookies` are optional and remain disabled when omitted. `DisableCookies = on` removes the under-load cookie/rate-limit protection; leave it off unless that tradeoff is intentional. Enabling random trailers requires compatible client/server settings. These options are supported, not enabled by default.
+
+| Parameter | Value | Meaning |
+| --- | --- | --- |
+| `RandomTrailers` | `on` / `off` | appends random trailing bytes to protocol packets |
+| `DisableCookies` | `on` / `off` | disables cookie replies and their under-load rate limiting |
 
 # Sample config file
 

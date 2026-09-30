@@ -22,6 +22,28 @@ type DeviceSetting struct {
 	MTU        int
 }
 
+func persistentKeepaliveRange(peer PeerConfig) (uintRange, error) {
+	if peer.keepAliveRange != nil &&
+		int(peer.keepAliveRange.min) == peer.KeepAlive &&
+		int(peer.keepAliveRange.max) == peer.KeepAliveMax {
+		return *peer.keepAliveRange, nil
+	}
+
+	maxUint32 := uint64(^uint32(0))
+	if peer.KeepAlive < 0 || uint64(peer.KeepAlive) > maxUint32 {
+		return uintRange{}, fmt.Errorf("PersistentKeepalive must be between 0 and %d", maxUint32)
+	}
+	if peer.KeepAliveMax < 0 || uint64(peer.KeepAliveMax) > maxUint32 {
+		return uintRange{}, fmt.Errorf("PersistentKeepalive maximum must be between 0 and %d", maxUint32)
+	}
+
+	keepAlive := uintRange{min: uint32(peer.KeepAlive), max: uint32(peer.KeepAlive)}
+	if peer.KeepAliveMax > peer.KeepAlive {
+		keepAlive.max = uint32(peer.KeepAliveMax)
+	}
+	return keepAlive, nil
+}
+
 // CreateIPCRequest serialize the config into an IPC request and DeviceSetting
 func CreateIPCRequest(conf *DeviceConfig) (*DeviceSetting, error) {
 	var request bytes.Buffer
@@ -121,13 +143,20 @@ func CreateIPCRequest(conf *DeviceConfig) (*DeviceSetting, error) {
 			fmt.Fprintf(&aSecBuilder, "max_handshake_attempts=%s\n", aSecConfig.maxHandshakeAttempts)
 		}
 
+		if aSecConfig.randomTrailers != nil {
+			fmt.Fprintf(&aSecBuilder, "random_trailers=%t\n", *aSecConfig.randomTrailers)
+		}
+		if aSecConfig.disableCookies != nil {
+			fmt.Fprintf(&aSecBuilder, "disable_cookies=%t\n", *aSecConfig.disableCookies)
+		}
+
 		request.WriteString(aSecBuilder.String())
 	}
 
 	for _, peer := range conf.Peers {
-		keepAlive := uintRange{min: uint32(peer.KeepAlive), max: uint32(peer.KeepAlive)}
-		if peer.KeepAliveMax > peer.KeepAlive {
-			keepAlive.max = uint32(peer.KeepAliveMax)
+		keepAlive, err := persistentKeepaliveRange(peer)
+		if err != nil {
+			return nil, err
 		}
 
 		fmt.Fprintf(&request, heredoc.Doc(`

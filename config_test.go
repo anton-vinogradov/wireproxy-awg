@@ -976,3 +976,106 @@ InactivityTimeout = -1`
 		t.Fatal("expected negative InactivityTimeout to be rejected")
 	}
 }
+
+func TestWireguardConfWithAWG31Params(t *testing.T) {
+	const config = `
+[Interface]
+PrivateKey = LAr1aNSNF9d0MjwUgAVC4020T0N/E5NUtqVv5EnsSz0=
+Address = 10.5.0.2
+RandomTrailers = on
+DisableCookies = true
+
+[Peer]
+PublicKey = e8LKAc+f9xEzq9Ar7+MfKRrs+gZ/4yzvpRJLRJ/VJ1w=
+AllowedIPs = 0.0.0.0/0
+Endpoint = 94.140.11.15:51820
+`
+
+	var cfg DeviceConfig
+	iniData, err := loadIniConfig(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = ParseInterface(iniData, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	if err = ParsePeers(iniData, &cfg.Peers); err != nil {
+		t.Fatal(err)
+	}
+
+	ipcReq, err := CreateIPCRequest(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{"random_trailers=true", "disable_cookies=true"} {
+		if !strings.Contains(ipcReq.IpcRequest, line) {
+			t.Fatalf("%q should be present in IPC request:\n%s", line, ipcReq.IpcRequest)
+		}
+	}
+}
+
+func TestWireguardConfWithDisabledAWG31Params(t *testing.T) {
+	iniData, err := loadIniConfig(`[Interface]
+PrivateKey = LAr1aNSNF9d0MjwUgAVC4020T0N/E5NUtqVv5EnsSz0=
+Address = 10.5.0.2
+RandomTrailers = off
+DisableCookies = false
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var cfg DeviceConfig
+	if err = ParseInterface(iniData, &cfg); err != nil {
+		t.Fatal(err)
+	}
+	ipcReq, err := CreateIPCRequest(&cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{"random_trailers=false", "disable_cookies=false"} {
+		if !strings.Contains(ipcReq.IpcRequest, line) {
+			t.Fatalf("%q should be present in IPC request:\n%s", line, ipcReq.IpcRequest)
+		}
+	}
+}
+
+func TestWireguardConfRejectsInvalidAWG31Params(t *testing.T) {
+	iniData, err := loadIniConfig(`[Interface]
+PrivateKey = LAr1aNSNF9d0MjwUgAVC4020T0N/E5NUtqVv5EnsSz0=
+Address = 10.5.0.2
+RandomTrailers = sometimes
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var cfg DeviceConfig
+	err = ParseInterface(iniData, &cfg)
+	if err == nil || !strings.Contains(err.Error(), "invalid RandomTrailers value") {
+		t.Fatalf("expected invalid RandomTrailers error, got %v", err)
+	}
+}
+
+func TestPersistentKeepaliveRangeCrossesInt32Boundary(t *testing.T) {
+	iniData, err := loadIniConfig(`[Peer]
+PublicKey = e8LKAc+f9xEzq9Ar7+MfKRrs+gZ/4yzvpRJLRJ/VJ1w=
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 2147483647-2147483648
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var peers []PeerConfig
+	if err = ParsePeers(iniData, &peers); err != nil {
+		t.Fatal(err)
+	}
+	setting, err := CreateIPCRequest(&DeviceConfig{Peers: peers})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(setting.IpcRequest, "persistent_keepalive_interval=2147483647-2147483648\n") {
+		t.Fatalf("range corrupted: %s", setting.IpcRequest)
+	}
+}
