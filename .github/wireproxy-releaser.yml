@@ -2,12 +2,17 @@ version: 2
 project_name: Build wireproxy
 before:
   hooks:
-    - go mod tidy -v
+    - go mod download
+    - go mod verify
+    - git diff --exit-code -- go.mod go.sum
 builds:
   - env:
       - CGO_ENABLED=0
+    flags:
+      - -trimpath
+      - -mod=readonly
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.arch={{.Arch}}
+      - -s -w -X main.version={{.Tag}} -X main.arch={{.Arch}}
     goos:
       - linux
       - windows
@@ -33,6 +38,8 @@ builds:
 universal_binaries:
   - name_template: "wireproxy"
     replace: false
+release:
+  draft: true
 checksum:
   name_template: "checksums.txt"
 snapshot:
