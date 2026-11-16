@@ -76,7 +76,7 @@ make
 # Install
 
 ```bash
-go install github.com/anton-vinogradov/wireproxy-awg/v3/cmd/wireproxy@v3.1.0 # or @latest
+go install github.com/anton-vinogradov/wireproxy-awg/v3/cmd/wireproxy@v3.1.1 # or @latest
 ```
 
 # Use with VPN

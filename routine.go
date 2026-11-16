@@ -43,10 +43,11 @@ type CredentialValidator struct {
 
 // VirtualTun stores a reference to netstack network and DNS configuration
 type VirtualTun struct {
-	Tnet      *netstack.Net
-	Dev       *device.Device
-	SystemDNS bool
-	Conf      *DeviceConfig
+	Tnet          *netstack.Net
+	Dev           *device.Device
+	SystemDNS     bool
+	Conf          *DeviceConfig
+	ResolveConfig *ResolveConfig
 	// PingRecord stores the last time an IP was pinged
 	PingRecord     map[string]uint64
 	PingRecordLock *sync.Mutex
@@ -88,19 +89,25 @@ func (d VirtualTun) ResolveAddrWithContext(ctx context.Context, name string) (*n
 		addrs[i], addrs[j] = addrs[j], addrs[i]
 	})
 
-	var addr netip.Addr
+	preferIPv4 := d.preferIPv4()
+	var fallback netip.Addr
 	for _, saddr := range addrs {
-		addr, err = netip.ParseAddr(saddr)
-		if err == nil {
-			break
+		addr, err := netip.ParseAddr(saddr)
+		if err != nil {
+			continue
+		}
+		if addr.Is4() == preferIPv4 {
+			return &addr, nil
+		}
+		if !fallback.IsValid() {
+			fallback = addr
 		}
 	}
 
-	if err != nil {
-		return nil, err
+	if fallback.IsValid() {
+		return &fallback, nil
 	}
-
-	return &addr, nil
+	return nil, errors.New("no address found for: " + name)
 }
 
 // Resolve resolves a hostname and returns an IP.
@@ -290,17 +297,10 @@ func tcpClientForward(vt *VirtualTun, raddr *addressPort, conn net.Conn) {
 }
 
 // STDIOTcpForward starts a new connection via wireguard and forward traffic from `conn`
-func STDIOTcpForward(vt *VirtualTun, raddr *addressPort) {
+func STDIOTcpForward(vt *VirtualTun, raddr *addressPort, input, output *os.File) {
 	target, err := vt.resolveToAddrPort(raddr)
 	if err != nil {
 		errorLogger.Printf("Name resolution error for %s: %s\n", raddr.address, err.Error())
-		return
-	}
-
-	// os.Stdout has previously been remapped to stderr, se we can't use it
-	stdout, err := os.OpenFile("/dev/stdout", os.O_WRONLY, 0)
-	if err != nil {
-		errorLogger.Printf("Failed to open /dev/stdout: %s\n", err.Error())
 		return
 	}
 
@@ -311,8 +311,8 @@ func STDIOTcpForward(vt *VirtualTun, raddr *addressPort) {
 		return
 	}
 
-	go connForward(os.Stdin, sconn)
-	go connForward(sconn, stdout)
+	go connForward(input, sconn)
+	go connForward(sconn, output)
 }
 
 // SpawnRoutine spawns a local TCP server which acts as a proxy to the specified target
@@ -343,7 +343,7 @@ func (conf *STDIOTunnelConfig) SpawnRoutine(vt *VirtualTun) {
 		log.Fatal(err)
 	}
 
-	go STDIOTcpForward(vt, raddr)
+	go STDIOTcpForward(vt, raddr, conf.Input, conf.Output)
 }
 
 // tcpServerForward starts a new connection locally and forward traffic from `conn`
